@@ -1,14 +1,14 @@
-gc,fs=love.graphics,love.filesystem
-max,int,abs,rnd=math.max,math.floor,math.abs,math.random
-byte,find,sub,gsub=string.byte,string.find,string.sub,string.gsub
-ins,rem=table.insert,table.remove
-toN,toS=tonumber,tostring
+local gc=love.graphics
+local max,int,abs,rnd=math.max,math.floor,math.abs,math.random
+local byte,find,sub,gsub=string.byte,string.find,string.sub,string.gsub
+local ins,rem=table.insert,table.remove
+local toN,toS=tonumber,tostring
 
-par_time={12,11,9,9,8}
-row={"row1","row2","row3","row4","row5"}
-cur={"cur1","cur2","cur3","cur4","cur5"}
-cup={"cup1","cup2","cup3","cup4","cup5"}
-color={
+local par_time={12,11,9,9,8}
+local row={"row1","row2","row3","row4","row5"}
+local cur={"cur1","cur2","cur3","cur4","cur5"}
+local cup={"cup1","cup2","cup3","cup4","cup5"}
+local color={
 	red={1,0,0},
 	green={0,1,0},
 	blue={0,0,1},
@@ -16,21 +16,21 @@ color={
 	white={1,1,1},
 	grey={.4,.4,.4},
 }
-modes={
+local modes={
 	"Standard",
 	"Easy",
 	"Hard",
 	"Extreme",
 	"Lunatic",
 }
-trophy_text={
+local trophy_text={
 	"Good.\nNot noob now.",
 	"Great.\nLet's go deeper.",
 	"Nice?\nMay very hard.",
 	"Awesome!\nYou are master now.",
 	"Incredible!!!\nGrand Master.",
 }
-modeColor={
+local modeColor={
 	color.green,
 	color.white,
 	color.red,
@@ -40,7 +40,7 @@ modeColor={
 --Lists
 
 gc.setDefaultFilter("nearest")
-img={
+local img={
 	"cup1","cup2","cup3","cup4","cup5",
 	--Pixel img
 	"music","sound","vibrate",
@@ -52,13 +52,13 @@ for i=1,#img do
 	img[img[i]],img[i]=gc.newImage("image/"..img[i]..".png")
 end--Filter
 
-bgm={
+local bgm={
 	"title",
 	"main",
 	"main2",
 	"trophy",
 }
-sfx={
+local sfx={
 	"1","2","3","4","5","6","7","8","9","0",
 	"del_1","del_2","del_3","del_4",
 	"error","check","click","sweep",
@@ -74,38 +74,99 @@ for i=1,#sfx do
 	sfx[i]=nil
 end
 
-setting={
+local setting={
 	bgm=true,
 	sfx=true,
 	vib=true,
 }
-stat={
+local stat={
 	row1=0,row2=0,row3=0,row4=0,row5=0,
 	cur1=0,cur2=0,cur3=0,cur4=0,cur5=0,
 	cup1=false,cup2=false,cup3=false,cup4=false,cup5=false,
 	playing=0,
 }
 
-bgmPlaying=nil
-function SFX(s)
+local userdata=love.filesystem.newFile("userdata")
+local function splitS(s,sep)
+	sep=sep or"/"
+	local t={}
+	repeat
+		local i=find(s,sep)or #s+1
+		ins(t,sub(s,1,i-1))
+		s=sub(s,i+#sep)
+	until #s==0
+	return t
+end
+local function savedata()
+	local t={
+		"sfx="..toS(setting.sfx),
+		"bgm="..toS(setting.bgm),
+		"vib="..toS(setting.vib),
+		"playing="..toS(stat.playing),
+	}
+	for i=1,5 do
+		ins(t,row[i].."=",toS(stat[row[i]]))
+		ins(t,cur[i].."=",toS(stat[cur[i]]))
+		ins(t,cup[i].."=",toS(stat[cup[i]]))
+	end
+	t=table.concat(t,"\r\n")
+	--t=love.math.compress(t,"zlib"):getString()
+	userdata:open("w")
+	userdata:write(t)
+	userdata:close()
+end
+if love.filesystem.getInfo("userdata")then
+	userdata:open("r")
+	local t=splitS(userdata:read(),"\r\n")
+	userdata:close()
+	for i=1,#t do
+		i=t[i]
+		if find(i,"=")then
+			local k=sub(i,1,find(i,"=")-1)
+			local v=sub(i,find(i,"=")+1)
+			if k=="sfx"or k=="bgm"or k=="vib"then
+				setting[k]=v=="true"
+			elseif k=="playing"then
+				v=toN(v)
+				stat[k]=v and v>0 and int(v)==v and v or 0
+			else
+				local pre=k:sub(1,3)
+				if pre=="cup"then
+					stat[k]=v=="true"
+				elseif pre=="row"or pre=="cur"then
+					v=toN(v)
+					stat[k]=v and v>0 and int(v)==v and v or 0
+				end
+			end
+		end
+	end
+	if stat.playing>0 then
+		stat[cur[stat.playing]]=0
+		savedata()
+	end
+end
+
+local bgmPlaying=nil
+local function SFX(s)
 	if setting.sfx then
 		sfx[s]:stop()
 		sfx[s]:play()
 	end
 end
-function BGM(s)
+local function BGM(s)
 	if setting.bgm and bgmPlaying~=s then
 		if bgmPlaying then bgm[bgmPlaying]:stop()end
 		if s then bgm[s]:play()end
 		bgmPlaying=s
 	end
 end
-function VIB(t)
+local function VIB(t)
 	if setting.vib then
 		love.system.vibrate(t)
 	end
 end
 
+local system
 do
 	local l={
 		Windows=1,
@@ -114,13 +175,15 @@ do
 	system=l[love.system.getOS()]
 	l=nil
 end--Get operating system
-touching=nil
-function convert(x,y)
+
+local touching=nil
+local function convert(x,y)
 	return (x-screenM)*screenK,y*screenK
 end
 
-Fonts={}
-function setFont(s)
+local Fonts={}
+local currentFont
+local function setFont(s)
 	if s~=currentFont then
 		if Fonts[s]then
 			gc.setFont(Fonts[s])
@@ -132,18 +195,15 @@ function setFont(s)
 		currentFont=s
 	end
 end
-function stringPack(s,v)return s..toS(v)end
-function string.splitS(s,sep)
-	sep=sep or"/"
-	local t={}
-	repeat
-		local i=find(s,sep)or #s+1
-		ins(t,sub(s,1,i-1))
-		s=sub(s,i+#sep)
-	until #s==0
-	return t
-end
-function mStr(s,x,y)gc.printf(s,x-400,y,800,"center")end
+local function mStr(s,x,y)gc.printf(s,x-400,y,800,"center")end
+
+local game
+local input,time
+local remain
+local info,L
+local mes
+local tagMenu
+local tagList
 
 Button_backmenu={
 	{"Yes",360,600,400,80,function()
@@ -265,7 +325,7 @@ Button_trophy={
 Button=nil--Current button list
 Button_sel={nil,0}
 
-function drawButton()
+local function drawButton()
 	for i=1,#Button do
 		local b=Button[i]
 		if not b.hide or b.hide and not b.hide()then
@@ -289,18 +349,18 @@ function drawButton()
 	end
 end
 
-function beautiful(s)
+local function beautiful(s)
 	for i=1,3 do
 		if abs(byte(s,i)-byte(s,i+1))==1 then return nil end
 	end
 	return true
 end
-function randomInput(time)
+local function randomInput(time)
 	local t
 	repeat
 		local l={1,2,3,4,5,6,7,8,9,0}
 		t=""
-		for i=1,4 do
+		for _=1,4 do
 			t=t..rem(l,rnd(#l))
 		end
 	until beautiful(t)
@@ -310,7 +370,7 @@ function randomInput(time)
 		repeat
 			local l={1,2,3,4,5,6,7,8,9,0}
 			t=""
-			for i=1,4 do
+			for _=1,4 do
 				t=t..rem(l,rnd(#l))
 			end
 		until beautiful(t)and t~=sub(info[1],1,4)
@@ -318,19 +378,19 @@ function randomInput(time)
 		guess()
 	end
 end
-function haveEqual(N)
+local function haveEqual(N)
 	for i=1,3 do for j=i+1,4 do
 		if byte(N,i)==byte(N,j)then return true end
 	end end
 end
-function haveGuessed()
+local function haveGuessed()
 	for i=1,#info do
 		if input==sub(info[i],1,4)then
 			return true
 		end
 	end
 end
-function comp(T,X)
+local function comp(T,X)
 	local A,B=0,0
 	for i=1,4 do
 		if byte(T,i)==byte(X,i)then
@@ -344,7 +404,7 @@ function comp(T,X)
 	end
 	return A,B
 end
-function check(X)
+local function check(X)
 	local A,B
 	if time==1 then
 		if mode==1 then
@@ -390,7 +450,7 @@ function check(X)
 			A,B=comp(L[i],X)
 			mat[5*A+B]=mat[5*A+B]+1
 		end
-		local best
+		local best,a,b
 		if mode==2 then
 			local m=0
 			for i=0,19 do m=m+mat[i]end
@@ -401,7 +461,7 @@ function check(X)
 			end
 			--Easy mode,choose a bigger class with larger possibility
 		else
-			local a,b,m=1,1,0
+			local m=0
 			best={}
 			for i=0,19 do
 				if mat[i]>m then
@@ -438,11 +498,14 @@ function check(X)
 	end
 end
 
+
+
 function reset()
 	game=0--0=playing,1=win,2=lost
 	input,time="",0
 	remain=par_time[mode]
-	info,L,mes={mode=="Standard"and"Number generated."or"Number generated(sure!)"},{}
+	info,L={mode=="Standard"and"Number generated."or"Number generated(sure!)"},{}
+	mes=false
 	tagMenu=false
 	tagList=tagList or{{},{},{},{}}
 	for i=1,4 do
@@ -461,7 +524,8 @@ function reset()
 end
 function charin(i)
 	if game==0 and #input<4 then
-		input,mes=input..i
+		input=input..i
+		mes=false
 	end
 	SFX(i)
 	SFX("click")
@@ -469,7 +533,8 @@ end
 function backspace()
 	if game==0 and #input>0 then
 		SFX("del_"..(5-#input))
-		input,mes=sub(input,1,-2)
+		input=sub(input,1,-2)
+		mes=false
 	end
 end
 function changeTag(x,y)
@@ -492,7 +557,8 @@ function guess()
 		mes="Guessed this!"
 		SFX("error")
 	else
-		time,mes=time+1
+		mes=false
+		time=time+1
 		remain=remain-1
 		check(input)
 		if remain==0 and game==0 then
@@ -568,51 +634,6 @@ function trophy(m)
 	SFX("win")
 end
 
-function loaddata()
-	userdata:open("r")
-	local t=string.splitS(userdata:read(),"\r\n")
-	userdata:close()
-	for i=1,#t do
-		local i=t[i]
-		if find(i,"=")then
-			local t=sub(i,1,find(i,"=")-1)
-			local v=sub(i,find(i,"=")+1)
-			if t=="sfx"or t=="bgm"or t=="vib"then
-				setting[t]=v=="true"
-			elseif t=="playing"then
-				v=toN(v)
-				stat[t]=v and v>0 and int(v)==v and v or 0
-			else
-				local k=sub(t,1,3)
-				if k=="cup"then
-					stat[t]=v=="true"
-				elseif k=="row"or k=="cur"then
-					v=toN(v)
-					stat[t]=v and v>0 and int(v)==v and v or 0
-				end
-			end
-		end
-	end
-end
-function savedata()
-	local t={
-		stringPack("sfx=",setting.sfx),
-		stringPack("bgm=",setting.bgm),
-		stringPack("vib=",setting.vib),
-		stringPack("playing=",stat.playing),
-	}
-	for i=1,5 do
-		ins(t,stringPack(row[i].."=",stat[row[i]]))
-		ins(t,stringPack(cur[i].."=",stat[cur[i]]))
-		ins(t,stringPack(cup[i].."=",stat[cup[i]]))
-	end
-	t=table.concat(t,"\r\n")
-	--t=love.math.compress(t,"zlib"):getString()
-	userdata:open("w")
-	userdata:write(t)
-	userdata:close()
-end
-
 function love.keypressed(i)
 	frameUpdate=true
 	if scene=="play"then
@@ -636,7 +657,7 @@ function love.keypressed(i)
 		end
 	end
 end
-function love.mousemoved(x,y,dx,dy,t)
+function love.mousemoved(x,y)
 	frameUpdate=true
 	x,y=convert(x,y)
 	Button_sel[1]=nil
@@ -650,7 +671,7 @@ function love.mousemoved(x,y,dx,dy,t)
 	end--Alther:[rownumber]
 	if not Button_sel[1]then Button_sel[2]=0 end
 end
-function love.mousepressed(x,y,b,t,n)
+function love.mousepressed(x,y,b,t)
 	frameUpdate=true
 	x,y=convert(x,y)
 	if b==1 and not t then
@@ -662,7 +683,7 @@ function love.mousepressed(x,y,b,t,n)
 		end
 	end
 end
-function love.mousereleased(x,y,b,t,n)
+function love.mousereleased(x,y,b,t)
 	frameUpdate=true
 	if b==1 and not t then
 		if Button_sel[2]==2 then
@@ -674,7 +695,7 @@ function love.mousereleased(x,y,b,t,n)
 	end
 end
 
-function love.touchmoved(id,x,y)
+function love.touchmoved(_,x,y)
 	frameUpdate=true
 	love.mousemoved(x,y)
 	if not Button_sel[1]then
@@ -704,9 +725,9 @@ function love.touchreleased(id,x,y)
 	end
 end
 
-function love.resize(x,y)
-	screenK=1280/gc.getHeight()
-	screenM=(gc.getWidth()-gc.getHeight()*720/1280)/2
+function love.resize(w,h)
+	screenK=1280/h
+	screenM=(w-h*720/1280)/2
 	gc.origin()
 	gc.translate(screenM,0)
 	gc.scale(1/screenK,1/screenK)
@@ -822,16 +843,6 @@ function love.run()
 			gc.present()
 			frameUpdate=false
 		end
-	end
-end
-
-userdata=fs.newFile("userdata")
-if fs.getInfo("userdata")then
-	loaddata()
-	if stat.playing>0 then
-		local t=stat.playing
-		stat[cur[t]]=0
-		savedata()
 	end
 end
 
