@@ -177,9 +177,6 @@ do
 end--Get operating system
 
 local touching=nil
-local function convert(x,y)
-	return (x-screenM)*screenK,y*screenK
-end
 
 local Fonts={}
 local currentFont
@@ -197,7 +194,9 @@ local function setFont(s)
 end
 local function mStr(s,x,y)gc.printf(s,x-400,y,800,"center")end
 
+local scene
 local game
+local mode
 local input,time
 local remain
 local info,L
@@ -355,7 +354,7 @@ local function beautiful(s)
 	end
 	return true
 end
-local function randomInput(time)
+local function randomInput(count)
 	local t
 	repeat
 		local l={1,2,3,4,5,6,7,8,9,0}
@@ -366,7 +365,7 @@ local function randomInput(time)
 	until beautiful(t)
 	input=t
 	guess()
-	if time==2 then
+	if count==2 then
 		repeat
 			local l={1,2,3,4,5,6,7,8,9,0}
 			t=""
@@ -634,8 +633,9 @@ function trophy(m)
 	SFX("win")
 end
 
+local needDraw=true
 function love.keypressed(i)
-	frameUpdate=true
+	needDraw=true
 	if scene=="play"then
 		if #i==1 and byte(i)>47 and byte(i)<58 then
 			charin(i)
@@ -657,8 +657,13 @@ function love.keypressed(i)
 		end
 	end
 end
+
+local screenK,screenM
+local function convert(x,y)
+	return (x-screenM)*screenK,y*screenK
+end
 function love.mousemoved(x,y)
-	frameUpdate=true
+	needDraw=true
 	x,y=convert(x,y)
 	Button_sel[1]=nil
 	for i=1,#Button do
@@ -672,7 +677,7 @@ function love.mousemoved(x,y)
 	if not Button_sel[1]then Button_sel[2]=0 end
 end
 function love.mousepressed(x,y,b,t)
-	frameUpdate=true
+	needDraw=true
 	x,y=convert(x,y)
 	if b==1 and not t then
 		if Button_sel[2]==1 then
@@ -684,7 +689,7 @@ function love.mousepressed(x,y,b,t)
 	end
 end
 function love.mousereleased(x,y,b,t)
-	frameUpdate=true
+	needDraw=true
 	if b==1 and not t then
 		if Button_sel[2]==2 then
 			Button_sel[2]=1
@@ -696,14 +701,14 @@ function love.mousereleased(x,y,b,t)
 end
 
 function love.touchmoved(_,x,y)
-	frameUpdate=true
+	needDraw=true
 	love.mousemoved(x,y)
 	if not Button_sel[1]then
 		touching=nil
 	end
 end
 function love.touchpressed(id,x,y)
-	frameUpdate=true
+	needDraw=true
 	if #love.touch.getTouches()==1 then
 		touching=id
 		love.mousemoved(x,y)
@@ -713,7 +718,7 @@ function love.touchpressed(id,x,y)
 	end
 end
 function love.touchreleased(id,x,y)
-	frameUpdate=true
+	needDraw=true
 	if id==touching then
 		touching=nil
 		if Button_sel[1]then
@@ -820,14 +825,13 @@ function love.draw()
 end
 function love.focus(f)
 	if f then
-		frameUpdate=true
+		needDraw=true
 		if bgmPlaying then bgm[bgmPlaying]:play()end
 	else
 		if bgmPlaying then bgm[bgmPlaying]:pause()end
 	end
 end
 function love.run()
-	frameUpdate=true
 	love.resize(nil,gc.getHeight())
 	math.randomseed(os.time()*626)
 	gc.setLineWidth(3)
@@ -837,11 +841,11 @@ function love.run()
 			if name=="quit"then return 0 end
 			love.handlers[name](a,b,c,d,e,f)
 		end
-		if frameUpdate then
+		if needDraw then
 			gc.clear()
 			love.draw()
 			gc.present()
-			frameUpdate=false
+			needDraw=false
 		end
 	end
 end
